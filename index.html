@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rastreador Polymarket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    --bg: #0a0e14;
+    --panel: #11161f;
+    --panel-2: #161c27;
+    --border: #232b38;
+    --text: #e8edf5;
+    --text-dim: #7c8797;
+    --text-faint: #4d5666;
+    --buy: #37d67a;
+    --buy-dim: #1a3327;
+    --sell: #ff5c72;
+    --sell-dim: #341c22;
+    --accent: #ffb238;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100%;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  header.top h1 {
+    font-family: var(--mono);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--text);
+  }
+  header.top h1 span { color: var(--text-faint); font-weight: 500; }
+  .clock {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .add-row input {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    outline: none;
+    min-width: 0;
+  }
+  .add-row input::placeholder { color: var(--text-faint); }
+  .add-row input:focus { border-color: var(--accent); }
+  .add-row button {
+    background: var(--accent);
+    color: #1a1305;
+    border: none;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 0 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .add-row button:active { transform: translateY(1px); }
+  .hint {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin: -12px 0 22px;
+  }
+
+  .profiles {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-head .who {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+    object-fit: cover;
+  }
+  .who-text { min-width: 0; }
+  .who-name {
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .who-addr {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--text-faint); }
+
+  .rows { padding: 4px 0; }
+  .row {
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .row:last-child { border-bottom: none; }
+
+  .side-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 3px 0;
+    border-radius: 5px;
+    text-align: center;
+  }
+  .side-tag.buy { background: var(--buy-dim); color: var(--buy); }
+  .side-tag.sell { background: var(--sell-dim); color: var(--sell); }
+  .side-tag.other { background: var(--border); color: var(--text-dim); }
+
+  .row-mid { min-width: 0; }
+  .row-title {
+    font-size: 13.5px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+  }
+  .row-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 2px;
+  }
+  .row-sub .outcome-yes { color: var(--buy); }
+  .row-sub .outcome-no { color: var(--sell); }
+
+  .row-num {
+    text-align: right;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .row-amt { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .row-odd { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  .empty, .loading, .error {
+    padding: 26px 16px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+  .error { color: var(--sell); }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 13px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 480px) {
+    .row { grid-template-columns: 44px 1fr auto; gap: 8px; padding: 10px 12px; }
+    .card-head { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>polymarket<span>/</span>rastreador</h1>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <div class="add-row">
+    <input id="addr-input" type="text" placeholder="Cole o endereço da carteira (0x...)" autocomplete="off" spellcheck="false">
+    <button id="add-btn">Adicionar</button>
+  </div>
+  <div class="hint">Encontre o endereço na URL do perfil na Polymarket: polymarket.com/profile/<b style="color:var(--text-dim)">0x...</b> — atualiza automaticamente a cada 30s.</div>
+
+  <div class="profiles" id="profiles"></div>
+  <div id="empty-placeholder" class="empty-state">Nenhum perfil adicionado ainda.<br>Cole um endereço de carteira acima para começar.</div>
+</div>
+
+<script>
+const STORAGE_KEY = 'pm_tracker_wallets_v1';
+// Isso chama nosso próprio servidor (pasta /api), que por sua vez busca na Polymarket.
+// Assim evitamos o bloqueio de CORS do navegador.
+const API = '/api/activity';
+let wallets = [];
+
+function loadWallets() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    wallets = raw ? JSON.parse(raw) : [];
+  } catch (e) { wallets = []; }
+}
+function saveWallets() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(wallets)); }
+  catch (e) { /* ignore */ }
+}
+
+function shortAddr(a) {
+  if (!a) return '';
+  return a.slice(0, 6) + '…' + a.slice(-4);
+}
+
+function timeAgo(unixSeconds) {
+  const diff = Math.max(0, Date.now()/1000 - unixSeconds);
+  if (diff < 60) return Math.floor(diff) + 's atrás';
+  if (diff < 3600) return Math.floor(diff/60) + 'min atrás';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h atrás';
+  return Math.floor(diff/86400) + 'd atrás';
+}
+
+function fmtUsd(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  return '$' + Number(n).toLocaleString('pt-BR', {maximumFractionDigits: 2});
+}
+
+function fmtOdd(price) {
+  if (price === undefined || price === null || isNaN(price)) return '—';
+  return (Number(price) * 100).toFixed(1) + '¢';
+}
+
+function cardHtml(wallet) {
+  return `
+    <div class="card" data-wallet="${wallet}">
+      <div class="card-head">
+        <div class="who">
+          <img class="avatar" id="avatar-${wallet}" src="" style="display:none">
+          <div class="who-text">
+            <div class="who-name" id="name-${wallet}">${shortAddr(wallet)}</div>
+            <div class="who-addr">${wallet}</div>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="icon-btn" title="Atualizar" onclick="refreshOne('${wallet}')">↻</button>
+          <button class="icon-btn" title="Remover" onclick="removeWallet('${wallet}')">✕</button>
+        </div>
+      </div>
+      <div class="rows" id="rows-${wallet}"><div class="loading"><span class="spinner"></span>Carregando…</div></div>
+    </div>
+  `;
+}
+
+function render() {
+  const container = document.getElementById('profiles');
+  const placeholder = document.getElementById('empty-placeholder');
+  if (wallets.length === 0) {
+    container.innerHTML = '';
+    placeholder.style.display = 'block';
+    return;
+  }
+  placeholder.style.display = 'none';
+  container.innerHTML = wallets.map(cardHtml).join('');
+  wallets.forEach(fetchActivity);
+}
+
+async function fetchActivity(wallet) {
+  const rowsEl = document.getElementById('rows-' + wallet);
+  if (!rowsEl) return;
+  try {
+    const url = `${API}?user=${wallet}&limit=20`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      rowsEl.innerHTML = '<div class="empty">Nenhuma atividade encontrada para este endereço.</div>';
+      return;
+    }
+
+    const withProfile = data.find(d => d.name || d.pseudonym || d.profileImage);
+    if (withProfile) {
+      const nameEl = document.getElementById('name-' + wallet);
+      const avatarEl = document.getElementById('avatar-' + wallet);
+      const label = withProfile.name || withProfile.pseudonym;
+      if (nameEl && label) nameEl.textContent = label;
+      if (avatarEl && withProfile.profileImage) {
+        avatarEl.src = withProfile.profileImage;
+        avatarEl.style.display = 'block';
+      }
+    }
+
+    rowsEl.innerHTML = data.map(item => {
+      const side = (item.side || '').toUpperCase();
+      const sideClass = side === 'BUY' ? 'buy' : side === 'SELL' ? 'sell' : 'other';
+      const sideLabel = side === 'BUY' ? 'COMPRA' : side === 'SELL' ? 'VENDA' : (item.type || '—');
+      const outcomeClass = /yes/i.test(item.outcome || '') ? 'outcome-yes' : /no/i.test(item.outcome || '') ? 'outcome-no' : '';
+      const amount = item.usdcSize !== undefined ? item.usdcSize : item.size;
+
+      return `
+        <div class="row">
+          <div class="side-tag ${sideClass}">${sideLabel}</div>
+          <div class="row-mid">
+            <div class="row-title">${item.title || 'Mercado sem título'}</div>
+            <div class="row-sub"><span class="${outcomeClass}">${item.outcome || ''}</span> · ${timeAgo(item.timestamp)}</div>
+          </div>
+          <div class="row-num">
+            <div class="row-amt">${fmtUsd(amount)}</div>
+            <div class="row-odd">odd ${fmtOdd(item.price)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    rowsEl.innerHTML = `<div class="error">Não foi possível carregar (${err.message}). Verifique o endereço ou tente novamente.</div>`;
+  }
+}
+
+function refreshOne(wallet) {
+  const rowsEl = document.getElementById('rows-' + wallet);
+  if (rowsEl) rowsEl.innerHTML = '<div class="loading"><span class="spinner"></span>Atualizando…</div>';
+  fetchActivity(wallet);
+}
+
+function removeWallet(wallet) {
+  wallets = wallets.filter(w => w !== wallet);
+  saveWallets();
+  render();
+}
+
+function addWallet() {
+  const input = document.getElementById('addr-input');
+  let val = input.value.trim();
+  if (!val) return;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(val)) {
+    alert('Isso não parece um endereço de carteira válido. Deve começar com 0x e ter 42 caracteres no total.');
+    return;
+  }
+  val = val.toLowerCase();
+  if (wallets.includes(val)) {
+    alert('Esse perfil já está na sua lista.');
+    return;
+  }
+  wallets.push(val);
+  saveWallets();
+  input.value = '';
+  render();
+}
+
+document.getElementById('add-btn').addEventListener('click', addWallet);
+document.getElementById('addr-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addWallet();
+});
+
+function tickClock() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('pt-BR');
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+setInterval(() => { wallets.forEach(fetchActivity); }, 30000);
+
+loadWallets();
+render();
+</script>
+</body>
+</html>
