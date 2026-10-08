@@ -329,7 +329,7 @@
   }
   .pos-head, .pos-row {
     display: grid;
-    grid-template-columns: 1fr 82px 82px 96px;
+    grid-template-columns: 1fr 74px 74px 86px 100px;
     gap: 10px;
     align-items: center;
     padding: 10px 14px;
@@ -365,10 +365,33 @@
   .up { color: var(--buy); }
   .down { color: var(--sell); }
 
+  .pos-num .sub.up { color: var(--buy); }
+  .pos-num .sub.down { color: var(--sell); }
+
+  /* histórico: apostou x retorno */
+  .amt-line {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .amt-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .amt-line + .amt-line { margin-top: 2px; }
+
   @media (max-width: 560px) {
-    .pos-head, .pos-row { grid-template-columns: 1fr 62px 62px 74px; gap: 6px; padding: 10px 10px; }
+    .pos-head, .pos-row { grid-template-columns: repeat(4, 1fr); gap: 4px 8px; padding: 10px 12px; }
+    .pos-mkt { grid-column: 1 / -1; }
+    .pos-head div:first-child { display: none; }
     .pos-num { font-size: 12px; }
     .pos-title { font-size: 12.5px; }
+    .pos-card-head { flex-wrap: wrap; }
+    .pos-card-meta { margin-left: 16px; white-space: normal; }
   }
 
   @media (max-width: 560px) {
@@ -407,6 +430,7 @@
         <h2>Histórico geral</h2>
         <div class="hint" id="feed-count"></div>
       </div>
+      <div class="hint" style="margin:-4px 0 10px;">Apostou = quanto a pessoa pagou · Retorno = quanto recebe se acertar (US$ 1 por cota)</div>
       <div class="feed" id="feed"></div>
     </div>
 
@@ -621,7 +645,22 @@ function renderFeed() {
     const sideClass = side === 'BUY' ? 'buy' : side === 'SELL' ? 'sell' : 'other';
     const sideLabel = side === 'BUY' ? 'COMPRA' : side === 'SELL' ? 'VENDA' : (item.type || '—');
     const outcomeClass = /yes/i.test(item.outcome || '') ? 'outcome-yes' : /no/i.test(item.outcome || '') ? 'outcome-no' : '';
-    const amount = item.usdcSize !== undefined ? item.usdcSize : item.size;
+    const usdc = toNum(item.usdcSize !== undefined ? item.usdcSize : item.usdc_size);
+    const shares = toNum(item.size);
+
+    // COMPRA: apostou $X, recebe $1 por cota se acertar. VENDA: recebeu $X por N cotas.
+    let amountHtml;
+    if (side === 'BUY') {
+      amountHtml = `
+        <div class="amt-line"><span class="amt-label">Apostou</span><span class="row-amt">${fmtUsd(usdc)}</span></div>
+        <div class="amt-line"><span class="amt-label">Retorno</span><span class="row-amt up">${fmtUsd(shares)}</span></div>`;
+    } else if (side === 'SELL') {
+      amountHtml = `
+        <div class="amt-line"><span class="amt-label">Recebeu</span><span class="row-amt">${fmtUsd(usdc)}</span></div>
+        <div class="amt-line"><span class="amt-label">Cotas</span><span class="row-amt">${shares === null ? '—' : shares.toLocaleString('pt-BR', {maximumFractionDigits: 1})}</span></div>`;
+    } else {
+      amountHtml = `<div class="amt-line"><span class="amt-label">Valor</span><span class="row-amt">${fmtUsd(usdc !== null ? usdc : shares)}</span></div>`;
+    }
 
     return `
       <div class="row">
@@ -633,7 +672,7 @@ function renderFeed() {
           <div class="row-sub"><span class="${outcomeClass}">${item.outcome || ''}</span> · ${timeAgo(item.timestamp)}</div>
         </div>
         <div class="row-num">
-          <div class="row-amt">${fmtUsd(amount)}</div>
+          ${amountHtml}
           <div class="row-odd">${fmtOddBoth(item.price)}</div>
         </div>
       </div>
@@ -665,6 +704,7 @@ function normalizePosition(p) {
     avg: toNum(pick('avg_price', 'avgPrice')),
     cur: toNum(pick('current_price', 'curPrice', 'currentPrice')),
     value: toNum(pick('current_value', 'currentValue')),
+    invested: toNum(pick('entry_cost_usdc', 'entryCostUsdc', 'total_cost_usdc', 'totalCostUsdc', 'initial_value', 'initialValue')),
     size: toNum(pick('current_size', 'currentSize', 'size')),
     status: pick('status')
   };
@@ -704,6 +744,7 @@ function renderPositions() {
   if (wallets.length === 0) { body.innerHTML = ''; countEl.textContent = ''; return; }
 
   let totalValue = 0;
+  let totalInvested = 0;
   let totalCount = 0;
   let html = '';
 
@@ -724,16 +765,33 @@ function renderPositions() {
           ? `<div class="error">Não foi possível carregar (${esc(items._error)}).</div>`
           : '<div class="empty">Nenhuma posição aberta no momento.</div>';
       } else {
-        const walletTotal = open.reduce((s, p) => s + (p.value || 0), 0);
-        totalValue += walletTotal;
-        totalCount += open.length;
-        meta = `${open.length} ${open.length === 1 ? 'posição' : 'posições'} · ${fmtUsd(walletTotal)}`;
+        // Investido: usa o custo de entrada informado; se não vier, estima por cotas x preço médio
+        const investedOf = p => p.invested !== null ? p.invested
+          : (p.size !== null && p.avg !== null ? p.size * p.avg : null);
 
-        inner = `<div class="pos-head"><div>Mercado</div><div>AVG</div><div>Atual</div><div>Valor</div></div>` +
+        const walletTotal = open.reduce((s, p) => s + (p.value || 0), 0);
+        const walletInvested = open.reduce((s, p) => s + (investedOf(p) || 0), 0);
+        totalValue += walletTotal;
+        totalInvested += walletInvested;
+        totalCount += open.length;
+        meta = `${open.length} ${open.length === 1 ? 'posição' : 'posições'} · Investido ${fmtUsd(walletInvested)} → Valor ${fmtUsd(walletTotal)}`;
+
+        inner = `<div class="pos-head"><div>Mercado</div><div>AVG</div><div>Atual</div><div>Investido</div><div>Valor</div></div>` +
           open.map(p => {
             const outcomeClass = /yes|sim/i.test(p.outcome) ? 'outcome-yes' : /no|não|nao/i.test(p.outcome) ? 'outcome-no' : '';
             let curClass = '';
             if (p.avg !== null && p.cur !== null) curClass = p.cur > p.avg ? 'up' : p.cur < p.avg ? 'down' : '';
+
+            const inv = investedOf(p);
+            let pnlHtml = '';
+            if (inv !== null && inv > 0 && p.value !== null) {
+              const pnl = p.value - inv;
+              const pct = (pnl / inv) * 100;
+              const cls = pnl > 0 ? 'up' : pnl < 0 ? 'down' : '';
+              const sign = pnl > 0 ? '+' : pnl < 0 ? '−' : '';
+              pnlHtml = `<div class="sub ${cls}">${sign}${fmtUsd(Math.abs(pnl))} (${sign}${Math.abs(pct).toFixed(1)}%)</div>`;
+            }
+
             return `
               <div class="pos-row">
                 <div class="pos-mkt">
@@ -742,7 +800,8 @@ function renderPositions() {
                 </div>
                 <div class="pos-num">${priceCell(p.avg)}</div>
                 <div class="pos-num">${priceCell(p.cur, curClass)}</div>
-                <div class="pos-num pos-val">${fmtUsd(p.value)}</div>
+                <div class="pos-num">${fmtUsd(inv)}</div>
+                <div class="pos-num pos-val"><div>${fmtUsd(p.value)}</div>${pnlHtml}</div>
               </div>`;
           }).join('');
       }
@@ -760,7 +819,7 @@ function renderPositions() {
   });
 
   body.innerHTML = html;
-  countEl.textContent = totalCount > 0 ? `${totalCount} posições · ${fmtUsd(totalValue)} no total` : '';
+  countEl.textContent = totalCount > 0 ? `${totalCount} posições · Investido ${fmtUsd(totalInvested)} → Valor ${fmtUsd(totalValue)}` : '';
 }
 
 function switchTab(tab) {
