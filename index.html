@@ -286,6 +286,33 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* V4 */
+  .settings { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .settings summary { cursor: pointer; font-size: 12px; color: var(--text-dim); }
+  .set-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+  .set-grid label { font-size: 11px; color: var(--text-faint); display: flex; flex-direction: column; gap: 4px; }
+  .set-grid input, .set-grid select { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 8px; border-radius: 6px; }
+  .set-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .btn { background: var(--panel-3); border: 1px solid var(--border); color: var(--text); font-size: 12px; padding: 7px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .badge { font-family: var(--mono); font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.03em; }
+  .b-small { background: var(--border); color: var(--text-dim); }
+  .b-mid { background: #17283f; color: #5b9dff; }
+  .b-big { background: var(--accent-dim); color: var(--accent); }
+  .b-whale { background: #2b1b3d; color: #c792ea; }
+  .b-total { background: var(--sell-dim); color: var(--sell); }
+  .b-part { background: var(--accent-dim); color: var(--accent); }
+  .b-cons { background: var(--buy-dim); color: var(--buy); }
+  .alerts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .alert { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--buy); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; }
+  .alert.conflict { border-left-color: var(--sell); }
+  .alert b { font-family: var(--mono); font-size: 11px; }
+  .mkt-link { color: var(--accent); text-decoration: none; margin-left: 6px; }
+  .now-up { color: var(--accent); }
+  .now-down { color: var(--buy); }
+  .sig { font-family: 'Cambria Math', 'Segoe UI Symbol', 'Noto Sans Math', 'STIX Two Math', 'Apple Symbols', serif; }
+  footer.sigbar { text-align: center; margin-top: 34px; color: var(--text-faint); font-size: 12px; }
+  footer.sigbar .sig { color: var(--text-dim); font-size: 16px; }
+
   /* abas */
   .tabs {
     display: flex;
@@ -404,7 +431,7 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>polymarket<span>/</span>rastreador</h1>
+    <h1>polymarket<span>/</span>rastreador <span class="sig" style="font-size:14px;font-weight:400;margin-left:8px">by 𝕹𝖊𝖆𝖗𝖘𝖍𝖎𝖗𝖔</span></h1>
     <div class="status-strip"><span class="live-dot"></span><span id="clock"></span></div>
   </header>
 
@@ -417,6 +444,23 @@
     </div>
     <div class="wallet-chips" id="wallet-chips"></div>
     <div class="hint" style="margin-top:10px;">Encontre o endereço na URL do perfil: polymarket.com/profile/<b style="color:var(--text-dim)">0x...</b> · clique no lápis de um apelido pra renomear</div>
+    <details class="settings">
+      <summary>⚙ Configurações (tamanhos, alertas, consenso)</summary>
+      <div class="set-grid">
+        <label>MÉDIO a partir de (US$)<input type="number" id="s-mid" min="1"></label>
+        <label>GRANDE a partir de (US$)<input type="number" id="s-big" min="1"></label>
+        <label>WHALE a partir de (US$)<input type="number" id="s-whale" min="1"></label>
+        <label>Alertar a partir de (US$)<input type="number" id="s-alert" min="1"></label>
+        <label>Janela do consenso
+          <select id="s-win"><option value="30">30 min</option><option value="60">1 hora</option><option value="180">3 horas</option><option value="720">12 horas</option><option value="1440">24 horas</option></select>
+        </label>
+      </div>
+      <div class="set-actions">
+        <label class="btn"><input type="checkbox" id="s-sound"> Som</label>
+        <label class="btn"><input type="checkbox" id="s-notif"> Notificação do navegador</label>
+        <button class="btn" id="s-test" type="button">Testar alerta</button>
+      </div>
+    </details>
   </div>
 
   <div id="tabs-area">
@@ -430,7 +474,8 @@
         <h2>Histórico geral</h2>
         <div class="hint" id="feed-count"></div>
       </div>
-      <div class="hint" style="margin:-4px 0 10px;">Apostou = quanto a pessoa pagou · Retorno = quanto recebe se acertar (US$ 1 por cota)</div>
+      <div class="hint" style="margin:-4px 0 10px;">Apostou = quanto pagou · Retorno = quanto recebe se acertar (US$ 1 por cota) · ▲ = entrar agora sai mais caro que a entrada dele, ▼ = mais barato</div>
+      <div class="alerts" id="alerts"></div>
       <div class="feed" id="feed"></div>
     </div>
 
@@ -443,6 +488,7 @@
     </div>
   </div>
   <div id="empty-placeholder" class="empty-state">Nenhuma carteira adicionada ainda.<br>Adicione uma acima pra começar a ver o histórico.</div>
+  <footer class="sigbar">feito por <span class="sig">𝕹𝖊𝖆𝖗𝖘𝖍𝖎𝖗𝖔</span></footer>
 </div>
 
 <script>
@@ -455,6 +501,90 @@ let wallets = [];        // [{address, nickname, color}]
 let activityCache = {};  // address -> array of raw items from API
 let positionsCache = {}; // address -> array de posições abertas já normalizadas
 let currentTab = 'history';
+
+/* ========== V4 ========== */
+let S = { mid: 100, big: 500, whale: 1000, alertMin: 500, window: 180, sound: true, notif: false };
+try { Object.assign(S, JSON.parse(localStorage.getItem('pm_tracker_settings_v1') || '{}')); } catch (e) {}
+function saveS() { try { localStorage.setItem('pm_tracker_settings_v1', JSON.stringify(S)); } catch (e) {} }
+let priceNow = {}, seen = new Set(), seeded = {}, seenCons = new Set(), consSeeded = false;
+
+function tradeKey(i) { return [i.transactionHash, i.asset, i.side, i.size, i.timestamp].join('|'); }
+function condOf(i) { return i.conditionId || i.condition_id || null; }
+function sideOf(i) { return i.outcome || i.outcomeIndex; }
+
+function sizeBadge(usd) {
+  if (usd === null) return '';
+  const c = usd >= S.whale ? ['b-whale', 'WHALE'] : usd >= S.big ? ['b-big', 'GRANDE'] : usd >= S.mid ? ['b-mid', 'MÉDIO'] : ['b-small', 'PEQUENO'];
+  return `<span class="badge ${c[0]}">${c[1]}</span>`;
+}
+
+function marketLink(eventSlug, slug) {
+  const s = eventSlug || slug;
+  return s ? `<a class="mkt-link" href="https://polymarket.com/event/${encodeURIComponent(s)}" target="_blank" rel="noopener noreferrer" title="Abrir na Polymarket">↗</a>` : '';
+}
+
+// Venda total ou parcial: confere se a carteira ainda tem posição aberta nesse mercado/lado
+function sellKind(w, i) {
+  const ps = positionsCache[w.address];
+  if (!ps || ps._error || !i.asset) return '';
+  if (ps.length > 0 && !ps.some(p => p.asset)) return '';
+  const still = ps.some(p => p.asset === i.asset && (p.size === null || p.size > 0.01) && (!p.status || p.status === 'OPEN'));
+  return still ? '<span class="badge b-part">PARCIAL</span>' : '<span class="badge b-total">SAIU DE TUDO</span>';
+}
+
+function beep() {
+  try {
+    const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination); o.frequency.value = 880; g.gain.value = 0.15;
+    o.start(); o.stop(a.currentTime + 0.25);
+  } catch (e) {}
+}
+function alertUser(title, body) {
+  if (S.sound) beep();
+  if (S.notif && window.Notification && Notification.permission === 'granted') { try { new Notification(title, { body }); } catch (e) {} }
+}
+
+// Consenso: 2+ carteiras comprando o mesmo lado do mesmo mercado dentro da janela. Conflito: lados opostos.
+function consensus(merged) {
+  const cut = Date.now() / 1000 - S.window * 60, g = {};
+  merged.forEach(({ item, wallet }) => {
+    const c = condOf(item);
+    if ((item.side || '').toUpperCase() !== 'BUY' || item.timestamp < cut || !c) return;
+    const m = g[c] = g[c] || { title: item.title, sides: {} };
+    const s = m.sides[sideOf(item)] = m.sides[sideOf(item)] || { name: item.outcome || '', w: {}, usd: 0 };
+    s.w[wallet.address] = wallet; s.usd += toNum(item.usdcSize) || 0;
+  });
+  let html = ''; const keys = new Set();
+  Object.keys(g).forEach(c => {
+    const sides = Object.keys(g[c].sides), all = {};
+    sides.forEach(k => Object.assign(all, g[c].sides[k].w));
+    sides.forEach(k => {
+      const s = g[c].sides[k], ws = Object.values(s.w);
+      if (ws.length < 2) return;
+      keys.add(c + '|' + k);
+      html += `<div class="alert"><b style="color:var(--buy)">CONSENSO · ${ws.length} carteiras</b> em <b>${esc(s.name)}</b> — ${esc(g[c].title)}<br><span class="hint">${ws.map(x => esc(displayName(x))).join(', ')} · ${fmtUsd(s.usd)} no total</span></div>`;
+    });
+    if (sides.length > 1 && Object.keys(all).length > 1) {
+      html += `<div class="alert conflict"><b style="color:var(--sell)">CONFLITO</b> — ${esc(g[c].title)}<br><span class="hint">${sides.map(k => esc(g[c].sides[k].name) + ': ' + Object.values(g[c].sides[k].w).map(x => esc(displayName(x))).join(', ')).join(' · ')}</span></div>`;
+    }
+  });
+  return { html, keys };
+}
+
+// Preço atual (ponto médio) dos mercados mais recentes, via nosso proxy /api/prices
+async function fetchPrices() {
+  const rows = [];
+  wallets.forEach(w => (activityCache[w.address] || []).forEach(i => rows.push(i)));
+  rows.sort((a, b) => b.timestamp - a.timestamp);
+  const t = [...new Set(rows.slice(0, 40).filter(i => i.type === 'TRADE' && i.asset).map(i => i.asset))];
+  if (!t.length) return;
+  try {
+    const r = await fetch('/api/prices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens: t }) });
+    if (!r.ok) return;
+    Object.assign(priceNow, await r.json());
+    renderFeed();
+  } catch (e) {}
+}
 
 function migrateOldFormat() {
   try {
@@ -585,6 +715,18 @@ async function fetchActivity(address) {
     const data = await res.json();
     activityCache[address] = Array.isArray(data) ? data : [];
 
+    const first = !seeded[address]; seeded[address] = true;
+    activityCache[address].forEach(i => {
+      const k = tradeKey(i);
+      if (seen.has(k)) return;
+      seen.add(k);
+      const u = toNum(i.usdcSize);
+      const w = wallets.find(x => x.address === address);
+      if (!first && w && i.type === 'TRADE' && u !== null && u >= S.alertMin) {
+        alertUser(`${displayName(w)} ${(i.side || '').toUpperCase() === 'SELL' ? 'vendeu' : 'comprou'} ${fmtUsd(u)}`, `${i.title || ''} · ${i.outcome || ''}`);
+      }
+    });
+
     // Se algum item trouxer nome/pseudônimo e o usuário ainda não deu apelido, sugere preencher
     const w = wallets.find(x => x.address === address);
     if (w && !w._suggestedName) {
@@ -630,6 +772,13 @@ function renderFeed() {
   merged.sort((a, b) => b.item.timestamp - a.item.timestamp);
   merged = merged.slice(0, 150);
 
+  const cons = consensus(merged);
+  document.getElementById('alerts').innerHTML = cons.html;
+  cons.keys.forEach(k => {
+    if (!seenCons.has(k)) { seenCons.add(k); if (consSeeded) alertUser('Consenso detectado', 'Duas ou mais carteiras entraram no mesmo lado de um mercado.'); }
+  });
+  if (merged.length) consSeeded = true;
+
   if (merged.length === 0) {
     feedEl.innerHTML = anyError
       ? `<div class="error">Não foi possível carregar (${anyError}). Verifique os endereços.</div>`
@@ -662,14 +811,27 @@ function renderFeed() {
       amountHtml = `<div class="amt-line"><span class="amt-label">Valor</span><span class="row-amt">${fmtUsd(usdc !== null ? usdc : shares)}</span></div>`;
     }
 
+    const c = condOf(item);
+    let badges = sizeBadge(usdc);
+    if (side === 'SELL') badges += sellKind(wallet, item);
+    if (side === 'BUY' && c && cons.keys.has(c + '|' + sideOf(item))) badges += '<span class="badge b-cons">CONSENSO</span>';
+
+    let nowHtml = '';
+    const pn = priceNow[item.asset], pr = toNum(item.price);
+    if (pn !== undefined && pr !== null && item.type === 'TRADE') {
+      const d = Number(pn) - pr, show = Math.abs(d) >= 0.0005;
+      const cls = side === 'BUY' ? (d > 0 ? 'now-up' : 'now-down') : '';
+      nowHtml = ` · ${(pr * 100).toFixed(1)}¢ → ${(Number(pn) * 100).toFixed(1)}¢` + (show ? ` <span class="${cls}">${d > 0 ? '▲' : '▼'}${Math.abs(d * 100).toFixed(1)}</span>` : '');
+    }
+
     return `
       <div class="row">
         <div class="row-bar" style="background:${wallet.color}"></div>
         <div class="side-tag ${sideClass}">${sideLabel}</div>
         <div class="row-mid">
-          <div class="row-who"><span class="dot" style="background:${wallet.color}"></span><span class="row-who-name">${displayName(wallet)}</span></div>
+          <div class="row-who"><span class="dot" style="background:${wallet.color}"></span><span class="row-who-name">${displayName(wallet)}</span>${badges}</div>
           <div class="row-title">${item.title || 'Mercado sem título'}</div>
-          <div class="row-sub"><span class="${outcomeClass}">${item.outcome || ''}</span> · ${timeAgo(item.timestamp)}</div>
+          <div class="row-sub"><span class="${outcomeClass}">${item.outcome || ''}</span> · ${timeAgo(item.timestamp)}${nowHtml}${marketLink(item.eventSlug, item.slug)}</div>
         </div>
         <div class="row-num">
           ${amountHtml}
@@ -701,6 +863,9 @@ function normalizePosition(p) {
   return {
     title: pick('title') || 'Mercado sem título',
     outcome: pick('outcome') || '',
+    asset: pick('asset', 'asset_id', 'token_id'),
+    eventSlug: pick('event_slug', 'eventSlug'),
+    slug: pick('slug'),
     avg: toNum(pick('avg_price', 'avgPrice')),
     cur: toNum(pick('current_price', 'curPrice', 'currentPrice')),
     value: toNum(pick('current_value', 'currentValue')),
@@ -722,6 +887,7 @@ async function fetchPositions(address) {
     positionsCache[address]._error = err.message;
   }
   renderPositions();
+  renderFeed();
 }
 
 function fetchAllPositions() {
@@ -796,7 +962,7 @@ function renderPositions() {
               <div class="pos-row">
                 <div class="pos-mkt">
                   <div class="pos-title">${esc(p.title)}</div>
-                  <div class="row-sub"><span class="${outcomeClass}">${esc(p.outcome)}</span></div>
+                  <div class="row-sub"><span class="${outcomeClass}">${esc(p.outcome)}</span>${marketLink(p.eventSlug, p.slug)}</div>
                 </div>
                 <div class="pos-num">${priceCell(p.avg)}</div>
                 <div class="pos-num">${priceCell(p.cur, curClass)}</div>
@@ -842,11 +1008,38 @@ function tickClock() {
 setInterval(tickClock, 1000);
 tickClock();
 
+const numFields = { 's-mid': 'mid', 's-big': 'big', 's-whale': 'whale', 's-alert': 'alertMin' };
+Object.keys(numFields).forEach(id => {
+  const el = document.getElementById(id);
+  el.value = S[numFields[id]];
+  el.addEventListener('change', () => { const v = Number(el.value); if (v > 0) { S[numFields[id]] = v; saveS(); renderFeed(); } });
+});
+const selWin = document.getElementById('s-win');
+selWin.value = String(S.window);
+selWin.addEventListener('change', () => { S.window = Number(selWin.value); saveS(); renderFeed(); });
+const chkSound = document.getElementById('s-sound');
+chkSound.checked = S.sound;
+chkSound.addEventListener('change', () => { S.sound = chkSound.checked; saveS(); });
+const chkNotif = document.getElementById('s-notif');
+chkNotif.checked = !!(S.notif && window.Notification && Notification.permission === 'granted');
+chkNotif.addEventListener('change', async () => {
+  if (chkNotif.checked && window.Notification) {
+    S.notif = (await Notification.requestPermission()) === 'granted';
+    chkNotif.checked = S.notif;
+  } else { S.notif = false; chkNotif.checked = false; }
+  saveS();
+});
+document.getElementById('s-test').addEventListener('click', () => alertUser('Teste de alerta', 'Se você viu/ouviu isto, os alertas estão funcionando.'));
+
 loadWallets();
 renderChips();
 toggleEmptyState();
 fetchAll();
+fetchAllPositions();
 setInterval(fetchAll, POLL_MS);
+setInterval(() => { if (currentTab !== 'positions') fetchAllPositions(); }, 15000);
+setInterval(fetchPrices, 10000);
+setTimeout(fetchPrices, 2500);
 </script>
 </body>
 </html>
