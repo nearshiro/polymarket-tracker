@@ -286,6 +286,91 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* abas */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 2px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* posições abertas */
+  .pos-card { margin-bottom: 14px; }
+  .pos-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .pos-card-head .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .pos-card-name { font-weight: 600; font-size: 14px; }
+  .pos-card-meta {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .pos-head, .pos-row {
+    display: grid;
+    grid-template-columns: 1fr 82px 82px 96px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 14px;
+  }
+  .pos-head {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .pos-head div:not(:first-child) { text-align: right; }
+  .pos-row { border-bottom: 1px solid var(--border); }
+  .pos-row:last-child { border-bottom: none; }
+  .pos-mkt { min-width: 0; }
+  .pos-title {
+    font-size: 13.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pos-num {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .pos-num .sub { font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+  .pos-val { font-weight: 600; }
+  .up { color: var(--buy); }
+  .down { color: var(--sell); }
+
+  @media (max-width: 560px) {
+    .pos-head, .pos-row { grid-template-columns: 1fr 62px 62px 74px; gap: 6px; padding: 10px 10px; }
+    .pos-num { font-size: 12px; }
+    .pos-title { font-size: 12.5px; }
+  }
+
   @media (max-width: 560px) {
     .add-grid { grid-template-columns: 1fr; }
     .row { grid-template-columns: 3px 0 1fr auto; padding-left: 0; }
@@ -311,11 +396,28 @@
     <div class="hint" style="margin-top:10px;">Encontre o endereço na URL do perfil: polymarket.com/profile/<b style="color:var(--text-dim)">0x...</b> · clique no lápis de um apelido pra renomear</div>
   </div>
 
-  <div class="feed-head">
-    <h2>Histórico geral</h2>
-    <div class="hint" id="feed-count"></div>
+  <div id="tabs-area">
+    <div class="tabs">
+      <button class="tab active" id="tab-history" onclick="switchTab('history')">Histórico</button>
+      <button class="tab" id="tab-positions" onclick="switchTab('positions')">Posições abertas</button>
+    </div>
+
+    <div id="view-history">
+      <div class="feed-head">
+        <h2>Histórico geral</h2>
+        <div class="hint" id="feed-count"></div>
+      </div>
+      <div class="feed" id="feed"></div>
+    </div>
+
+    <div id="view-positions" style="display:none">
+      <div class="feed-head">
+        <h2>Posições abertas</h2>
+        <div class="hint" id="pos-count"></div>
+      </div>
+      <div id="positions-body"></div>
+    </div>
   </div>
-  <div class="feed" id="feed"></div>
   <div id="empty-placeholder" class="empty-state">Nenhuma carteira adicionada ainda.<br>Adicione uma acima pra começar a ver o histórico.</div>
 </div>
 
@@ -327,6 +429,8 @@ const POLL_MS = 5000;
 
 let wallets = [];        // [{address, nickname, color}]
 let activityCache = {};  // address -> array of raw items from API
+let positionsCache = {}; // address -> array de posições abertas já normalizadas
+let currentTab = 'history';
 
 function migrateOldFormat() {
   try {
@@ -406,20 +510,23 @@ function renameWallet(address) {
   saveWallets();
   renderChips();
   renderFeed();
+  renderPositions();
 }
 
 function removeWallet(address) {
   wallets = wallets.filter(w => w.address !== address);
   delete activityCache[address];
+  delete positionsCache[address];
   saveWallets();
   renderChips();
   renderFeed();
+  renderPositions();
   toggleEmptyState();
 }
 
 function toggleEmptyState() {
   document.getElementById('empty-placeholder').style.display = wallets.length === 0 ? 'block' : 'none';
-  document.getElementById('feed').style.display = wallets.length === 0 ? 'none' : 'block';
+  document.getElementById('tabs-area').style.display = wallets.length === 0 ? 'none' : 'block';
 }
 
 function addWallet() {
@@ -444,6 +551,7 @@ function addWallet() {
   renderChips();
   toggleEmptyState();
   fetchActivity(addr);
+  if (currentTab === 'positions') fetchPositions(addr);
 }
 
 async function fetchActivity(address) {
@@ -468,6 +576,7 @@ async function fetchActivity(address) {
 
 function fetchAll() {
   wallets.forEach(w => fetchActivity(w.address));
+  if (currentTab === 'positions') fetchAllPositions();
 }
 
 function renderFeed() {
@@ -530,6 +639,137 @@ function renderFeed() {
       </div>
     `;
   }).join('');
+}
+
+/* ========== POSIÇÕES ABERTAS ========== */
+
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toNum(v) {
+  const n = Number(v);
+  return (v === undefined || v === null || v === '' || isNaN(n)) ? null : n;
+}
+
+// Aceita tanto o formato novo (snake_case) quanto o antigo (camelCase) da Polymarket
+function normalizePosition(p) {
+  const pick = (...keys) => {
+    for (const k of keys) if (p[k] !== undefined && p[k] !== null) return p[k];
+    return undefined;
+  };
+  return {
+    title: pick('title') || 'Mercado sem título',
+    outcome: pick('outcome') || '',
+    avg: toNum(pick('avg_price', 'avgPrice')),
+    cur: toNum(pick('current_price', 'curPrice', 'currentPrice')),
+    value: toNum(pick('current_value', 'currentValue')),
+    size: toNum(pick('current_size', 'currentSize', 'size')),
+    status: pick('status')
+  };
+}
+
+async function fetchPositions(address) {
+  try {
+    const res = await fetch(`/api/positions?user=${address}&limit=100`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const arr = Array.isArray(json) ? json : (Array.isArray(json.data) ? json.data : []);
+    positionsCache[address] = arr.map(normalizePosition);
+  } catch (err) {
+    positionsCache[address] = positionsCache[address] || [];
+    positionsCache[address]._error = err.message;
+  }
+  renderPositions();
+}
+
+function fetchAllPositions() {
+  wallets.forEach(w => fetchPositions(w.address));
+}
+
+// Preço em ¢ (em cima) + odd decimal equivalente (embaixo)
+function priceCell(price, colorClass) {
+  if (price === null || price <= 0) return '<div>—</div>';
+  const cents = (price * 100).toFixed(1) + '¢';
+  const dec = (1 / price).toFixed(2) + 'x';
+  return `<div class="${colorClass || ''}">${cents}</div><div class="sub">${dec}</div>`;
+}
+
+function renderPositions() {
+  const body = document.getElementById('positions-body');
+  const countEl = document.getElementById('pos-count');
+  if (!body) return;
+
+  if (wallets.length === 0) { body.innerHTML = ''; countEl.textContent = ''; return; }
+
+  let totalValue = 0;
+  let totalCount = 0;
+  let html = '';
+
+  wallets.forEach(w => {
+    const items = positionsCache[w.address];
+    let inner = '';
+    let meta = '';
+
+    if (items === undefined) {
+      inner = '<div class="loading"><span class="spinner"></span>Carregando posições…</div>';
+    } else {
+      const open = items
+        .filter(p => (p.size === null || p.size > 0.0001) && (!p.status || p.status === 'OPEN'))
+        .sort((a, b) => (b.value || 0) - (a.value || 0));
+
+      if (open.length === 0) {
+        inner = items._error
+          ? `<div class="error">Não foi possível carregar (${esc(items._error)}).</div>`
+          : '<div class="empty">Nenhuma posição aberta no momento.</div>';
+      } else {
+        const walletTotal = open.reduce((s, p) => s + (p.value || 0), 0);
+        totalValue += walletTotal;
+        totalCount += open.length;
+        meta = `${open.length} ${open.length === 1 ? 'posição' : 'posições'} · ${fmtUsd(walletTotal)}`;
+
+        inner = `<div class="pos-head"><div>Mercado</div><div>AVG</div><div>Atual</div><div>Valor</div></div>` +
+          open.map(p => {
+            const outcomeClass = /yes|sim/i.test(p.outcome) ? 'outcome-yes' : /no|não|nao/i.test(p.outcome) ? 'outcome-no' : '';
+            let curClass = '';
+            if (p.avg !== null && p.cur !== null) curClass = p.cur > p.avg ? 'up' : p.cur < p.avg ? 'down' : '';
+            return `
+              <div class="pos-row">
+                <div class="pos-mkt">
+                  <div class="pos-title">${esc(p.title)}</div>
+                  <div class="row-sub"><span class="${outcomeClass}">${esc(p.outcome)}</span></div>
+                </div>
+                <div class="pos-num">${priceCell(p.avg)}</div>
+                <div class="pos-num">${priceCell(p.cur, curClass)}</div>
+                <div class="pos-num pos-val">${fmtUsd(p.value)}</div>
+              </div>`;
+          }).join('');
+      }
+    }
+
+    html += `
+      <div class="feed pos-card">
+        <div class="pos-card-head">
+          <span class="dot" style="background:${w.color}"></span>
+          <span class="pos-card-name">${esc(displayName(w))}</span>
+          <span class="pos-card-meta">${meta}</span>
+        </div>
+        ${inner}
+      </div>`;
+  });
+
+  body.innerHTML = html;
+  countEl.textContent = totalCount > 0 ? `${totalCount} posições · ${fmtUsd(totalValue)} no total` : '';
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('view-history').style.display = tab === 'history' ? 'block' : 'none';
+  document.getElementById('view-positions').style.display = tab === 'positions' ? 'block' : 'none';
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('tab-positions').classList.toggle('active', tab === 'positions');
+  if (tab === 'positions') { renderPositions(); fetchAllPositions(); }
 }
 
 document.getElementById('add-btn').addEventListener('click', addWallet);
